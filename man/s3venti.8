@@ -1,0 +1,208 @@
+.TH S3VENTI 8
+.SH NAME
+s3venti, s3mkarena, s3rmarena  \- archival storage server
+.SH SYNOPSIS
+.B s3venti
+[
+.B -a
+.I address
+]
+[
+.B -b
+.I bucket
+]
+[
+.B -c
+.I config
+]
+[
+.B -l
+.I log
+]
+.PP
+.B s3mkarena
+[
+.B -b
+.I bucket
+]
+[
+.B -c
+.I config
+]
+.PP
+.B s3rmarena
+.SH DESCRIPTION
+S3venti is a SHA1-addressed archival storage server that uses
+Amazon's ``Secure Simple Storage'' (S3) server to store the raw
+blocks.
+This manual page assumes an understanding of the structure
+of the traditional, disk-based venti server.
+See 
+.IR venti (7)
+for a full introduction to the system.
+.SS S3 Block Store
+An s3venti server must authenticate itself to the S3 server.
+The authentication comes in two parts, a non-secret ``Access Key ID'',
+and a ``Secret Access Key''.
+S3venti consults
+.IR factotum (4)
+for a key of the form
+.IP
+proto=pass role=client server=s3.amazonaws.com service=aws user=ACCESSKEYID !password=SECRETACCESSKEY
+.PP
+An s3venti server requires an S3 ``bucket'' in which to store blocks.
+This bucket must be formatted using s3mkarena, which will create the
+bucket if it does not already exist.  The name of the bucket must be
+unique on the S3 server.  S3mkarena is designed to use the same
+configuration file as s3venti (see below).  It does not check if the
+bucket is already in use; running s3mkarena on an existing s3venti
+bucket with a different encryption passphrase renders that bucket
+unusable by the original server.  This situation can be remedied by
+re-running s3mkarena with the original passphrase.
+.PP
+Different instances of s3venti can use the same bucket, provided that
+each instance can authenticate itself for that bucket, and provided
+that each instance uses the same encryption passphrase (if any).
+.SS Disk
+The s3venti server is intended to support a cache of blocks
+on a local disk partition, to speed access and to reduce
+bandwidth charges. This has not yet been implemented.
+.SS Memory
+S3venti can make effective use of large amounts of memory
+for the
+.I "lump cache ,
+which holds recently-accessed venti data blocks.
+The server refers to these as 
+.IR lumps .
+The lump cache should be at least 1MB but can profitably be much larger.
+The lump cache can be thought of as the level-1 cache:
+read requests handled by the lump cache can
+be served instantly.
+.SS Network
+The venti server announces a network service
+(conventionally TCP port 
+.BR venti ,
+17034) serving
+the venti protocol as described in
+.IR venti (7) .
+.SS Configuration File
+The configuration file holds configuration parameters for the s3venti
+server, and consists of lines in the form described below.
+Lines starting with
+.B #
+are comments.
+Quoting using apostrophes in the style of
+.IR rc (1)
+is supported.
+.TP
+.BI addr " netaddr
+network address to announce venti service
+(default
+.BR tcp!*!venti )
+.TP
+.BI bucket " name
+.I Name
+is the name of the bucket to be used on the S3 server.
+.TP
+.BI mem " size
+Lump cache size.
+A unit can be specified by appending a
+.LR k ,
+.LR m ,
+or
+.LR g
+(case-insensitive)
+to indicate kilobytes, megabytes, or gigabytes respectively.
+.TP
+.BI passphrase " string
+Specifies a string that will be used to encrypt block data stored on
+the S3 server.
+The data is encrypted using
+.IR aes (3) .
+.TP
+.B queuewrites
+Specifies that written blocks may be queued in memory, allowing
+client write requests to complete before the blocks have been
+written to the S3 server.
+The default is not to queue.
+Currently, this option has no effect.
+.TP
+.BI s3host " name
+.I Name
+is the name of the remote host that implements the S3 service.
+The default is s3.amazonaws.com.
+.TP
+.BI s3port " name
+.I Name
+is the name or number of the port to address on the remote S3 host.
+The default is http.
+.PD
+.SS Command Line
+Many of the options to s3venti duplicate parameters that
+can be specified in the configuration file.
+The command line options override those found in a
+configuration file.
+Additional options are:
+.TP
+.BI -c " config
+The server configuration file
+(default
+.BR venti.conf )
+.TP
+.BI -l " log
+Enable logging to the specified file.
+By default all logging is disabled.
+Logging slows server operation considerably.
+.TP
+.B -v
+Produce various debugging information on standard error,
+primarily related to the conversation between the venti server
+and clients.
+Specifying this option twice adds a trace of the http conversation
+between the venti server and the S3 server.
+.PD
+.SH EXAMPLE
+A simple configuration:
+.IP
+.EX
+% cat s3venti.conf
+addr tcp!*!5252
+bucket rcbilson-venti
+passphrase 'xyzzy'
+mem 10M
+% 
+.EE
+.PP
+Format the arena and start the server:
+.IP
+.EX
+% s3mkarena
+% s3venti &
+.EE
+.SH SOURCE
+.B /n/sources/contrib/rcbilson/s3venti
+.SH "SEE ALSO"
+.IR venti (1),
+.IR venti (3),
+.IR venti (7),
+.IR venti-backup (8)
+.IR venti-fmt (8)
+.br
+Sean Quinlan and Sean Dorward,
+``Venti: a new approach to archival storage'',
+.I "Usenix Conference on File and Storage Technologies" ,
+2002.
+.br
+``Amazon Simple Storage Service (Amazon S3)'', http://www.amazon.com/gp/browse.html?node=16427261
+.SH BUGS
+The encryption is vulnerable to a dictionary attack by anyone with
+access to the S3 bucket.
+.PP
+S3rmarena is both insanely dangerous and irritatingly non-functional.
+.PP
+Using factotum's proto=pass for authentication feels dirty.
+.PP
+The S3 interface cries out to be implemented as a filesystem.
+.PP
+The server ought to present usage statistics, as in
+.IR venti (7).

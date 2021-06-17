@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# .PP
+# S3rmarena is a simple and dangerous script that reads an s3venti
+# configuration file and attempts to remove the contents of the
+# designated bucket and the bucket itself using the undocumented
+# .I s3
+# program.  Due to laziness on the part of the implementor, s3rmarena
+# will only remove a limited number of blocks on any given invocation.
+# Should there be more blocks remaining in the bucket, the script will
+# fail with an error.  The script may need to be run multiple times to
+# successfully empty and remove the bucket.
+
+if test -z "$1"
+then
+	bucket=`awk '/^bucket/ {print $2}' s3venti.conf`
+else
+	bucket="$1"
+fi
+
+s3 ls $bucket | sed 's/></>\n</g' | awk '/^<Key>/ { gsub("</?Key>",""); print }' | xargs s3 rm $bucket
+s3 rm $bucket

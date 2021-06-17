@@ -1,0 +1,88 @@
+diff -Naur old/mkfile new/mkfile
+--- old/mkfile	Mon Feb 11 04:27:13 2008
++++ new/mkfile	Sat Mar 19 16:34:15 2011
+@@ -1,6 +1,4 @@
+-<$PLAN9/src/mkhdr
+-
+-MKSHELL=rc
++</$objtype/mkfile
+ 
+ CFLAGS=$CFLAGS
+ 
+@@ -52,18 +50,18 @@
+ 	$HFILES\
+ 	$CFILES\
+ 
+-BIN=$home/bin
++BIN=$home/bin/$objtype
+ 
+ it:V: all
+ 
+-<$PLAN9/src/mkmany
++</sys/src/cmd/mkmany
+ 
+ %.acid: %.$O $HFILES
+ 	$CC $CFLAGS -a $stem.c >$target
+ 
+ $SLIB(%.$O):N: %.$O
+ $SLIB:	${LIBOFILES:%=$SLIB(%)}
+-	names = `{echo $newprereq |sed 's/ /\n/g' |9 sed -n 's/'$SLIB'\(([^)]+)\)/\1/gp'}
++	names = `{echo $newprereq |sed 's/ /\n/g' | sed -n 's/'$SLIB'\(([^)]+)\)/\1/gp'}
+ 	ar vcr $SLIB $names
+ 
+ s3test:VQ: $O.s3
+diff -Naur old/s3block.c new/s3block.c
+--- old/s3block.c	Mon Feb 11 04:27:06 2008
++++ new/s3block.c	Sat Mar 19 17:02:44 2011
+@@ -33,7 +33,7 @@
+ 		hdr.codec = BlockECompress;
+ 		hdr.csize = wlen;
+ 	} else {
+-		if(wlen > hdr.size) {
++		if(wlen > (int)hdr.size) {
+ 			fprint(2, "whack error: dsize=%d size=%d\n", wlen, hdr.size);
+ 			abort();
+ 		}
+diff -Naur old/s3venti.c new/s3venti.c
+--- old/s3venti.c	Mon Feb 11 04:27:07 2008
++++ new/s3venti.c	Sat Mar  5 12:58:34 2011
+@@ -5,6 +5,7 @@
+ #include "fns.h"
+ 
+ int verbose;
++int mainstacksize = 1024 * 128;
+ 
+ void
+ usage(void)
+@@ -72,9 +73,12 @@
+ {
+ 	S3Req req;
+ 	S3Resp resp;
+-	uchar block[AESbsize + magiclen];
++	uchar *block;
+ 	char *err;
+ 	int len;
++	
++	if((block = malloc((AESbsize + magiclen) * sizeof(block[0]))) == nil)
++		sysfatal("checkmagic: %r");
+ 
+ 	memset(&req, 0, sizeof(req));
+ 	req.method = "GET";
+@@ -104,6 +108,8 @@
+ 
+ 	if(memcmp(block+AESbsize, magic, magiclen) != 0)
+ 		sysfatal("checkmagic failed; bad passphrase?");
++		
++	free(block);
+ }
+ 
+ S3Vconfig config;
+@@ -157,7 +163,7 @@
+ 		sysfatal("no bucket specified");
+ 
+ 	if(logfile){
+-		config.logfd = create(logfile, OWRITE|OAPPEND, 600);
++		config.logfd = create(logfile, OWRITE, 600|DMAPPEND);
+ 		if(config.logfd < 0)
+ 			sysfatal("can't open log file %s for writing", logfile);
+ 	}
